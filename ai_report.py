@@ -75,12 +75,17 @@ def main():
     print("Sending findings to Claude for analysis...\n")
     report = generate_report(findings)
 
-    with open("security_report.md", "w") as f:
+    with open("security_report.md", "w", encoding="utf-8") as f:
         f.write("# Security Incident Report\n\n")
         f.write(report)
 
     print("=" * 60)
-    print(report)
+    try:
+        print(report)
+    except UnicodeEncodeError:
+        # Some Windows terminals can't display certain characters (like emoji)
+        # even though the file itself saves fine as UTF-8.
+        print(report.encode("ascii", errors="replace").decode("ascii"))
     print("=" * 60)
     print("\nFull report saved to security_report.md")
 
