@@ -94,10 +94,10 @@ next steps (e.g. blocking IPs, enabling MFA, monitoring off-hours logins).
 ## Screenshots
 
 **Detection output — brute-force and invalid-user probing caught:**
-![Detection output](Screenshot_2026-07-24_184644.png)
+![Detection output](Screenshot%202026-07-24%20184644.png)
 
 **AI-generated incident report:**
-![AI report](Screenshot_2026-07-24_184806.png)
+![AI report](Screenshot%202026-07-24%20184806.png)
 
 ---
 
