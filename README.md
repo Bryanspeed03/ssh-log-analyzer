@@ -91,6 +91,14 @@ next steps (e.g. blocking IPs, enabling MFA, monitoring off-hours logins).
 - Standard SOC/blue-team detection concepts: brute-force detection, username
   enumeration detection, anomaly (off-hours) detection
 
+## Screenshots
+
+**Detection output — brute-force and invalid-user probing caught:**
+![Detection output](Screenshot_2026-07-24_184644.png)
+
+**AI-generated incident report:**
+![AI report](Screenshot_2026-07-24_184806.png)
+
 ---
 
 Built by Bryan Davila - IT student focused on cybersecurity & networking.
