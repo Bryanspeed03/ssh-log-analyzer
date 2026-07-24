@@ -16,7 +16,7 @@ Usage:
 import re
 import sys
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from collections import defaultdict
 
 # --- Config: tune these thresholds based on your environment ---
@@ -79,29 +79,53 @@ def parse_log_file(filepath):
 
 
 def detect_brute_force(events):
-    """Groups failed logins by IP, flags IPs with a burst of attempts in a short window."""
+    """Groups failed logins by IP, flags IPs with a burst of attempts in a short window.
+
+    Uses a sliding window: instead of requiring the ENTIRE first-to-last span
+    of attempts to be short (which one stray outlier attempt days later would
+    break), it checks whether any BRUTE_FORCE_WINDOW_MIN-minute window contains
+    at least BRUTE_FORCE_THRESHOLD attempts. This matches how brute-force
+    attacks actually look: a tight burst, possibly with unrelated noise
+    elsewhere in the log from the same IP.
+    """
     failed_by_ip = defaultdict(list)
     for e in events:
         if e["type"] == "failed":
             failed_by_ip[e["ip"]].append(e["timestamp"])
 
     findings = []
+    window = timedelta(minutes=BRUTE_FORCE_WINDOW_MIN)
+
     for ip, timestamps in failed_by_ip.items():
         timestamps.sort()
         if len(timestamps) < BRUTE_FORCE_THRESHOLD:
             continue
-        # Check if enough attempts happened within the time window
-        window_start = timestamps[0]
-        window_end = timestamps[-1]
-        duration_min = (window_end - window_start).total_seconds() / 60
-        if duration_min <= max(BRUTE_FORCE_WINDOW_MIN, len(timestamps)):
+
+        # Slide a window across the sorted timestamps looking for a dense burst
+        best_window_count = 0
+        best_start_idx = 0
+        left = 0
+        for right in range(len(timestamps)):
+            while timestamps[right] - timestamps[left] > window:
+                left += 1
+            count_in_window = right - left + 1
+            if count_in_window > best_window_count:
+                best_window_count = count_in_window
+                best_start_idx = left
+
+        if best_window_count >= BRUTE_FORCE_THRESHOLD:
+            burst_start = timestamps[best_start_idx]
+            burst_end = timestamps[best_start_idx + best_window_count - 1]
+            duration_min = (burst_end - burst_start).total_seconds() / 60
             findings.append({
                 "ip": ip,
-                "attempt_count": len(timestamps),
-                "first_attempt": timestamps[0].isoformat(),
-                "last_attempt": timestamps[-1].isoformat(),
+                "attempt_count": best_window_count,
+                "total_attempts_from_ip": len(timestamps),
+                "first_attempt": burst_start.isoformat(),
+                "last_attempt": burst_end.isoformat(),
                 "duration_minutes": round(duration_min, 1),
             })
+
     return sorted(findings, key=lambda x: x["attempt_count"], reverse=True)
 
 
