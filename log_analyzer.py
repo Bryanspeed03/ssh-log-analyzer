@@ -16,6 +16,7 @@ Usage:
 import re
 import sys
 import json
+from zoneinfo import ZoneInfo
 from datetime import datetime, timedelta
 from collections import defaultdict
 
@@ -24,6 +25,7 @@ BRUTE_FORCE_THRESHOLD = 10       # failed attempts from one IP to flag as brute 
 BRUTE_FORCE_WINDOW_MIN = 10      # within this many minutes
 OFF_HOURS_START = 0              # midnight
 OFF_HOURS_END = 5                # 5 AM - logins in this window get flagged
+LOCAL_TIMEZONE = "America/New_York"   # convert UTC server logs to this time zone
 
 LOG_PATTERN = re.compile(
     r"^(?P<timestamp>\w{3}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2})\s+"
@@ -31,11 +33,17 @@ LOG_PATTERN = re.compile(
     r"(?P<message>.+)$"
 )
 
+ISO_PATTERN = re.compile(
+    r"^(?P<timestamp>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:[+-]\d{2}:\d{2}|Z)?)\s+"
+    r"(?P<host>\S+)\s+sshd(?:-session)?\[\d+\]:\s+"
+    r"(?P<message>.+)$"
+)
+
 FAILED_PATTERN = re.compile(
-    r"Failed password for (invalid user )?(?P<user>\S+) from (?P<ip>[\d.]+) port (?P<port>\d+)"
+    r"Failed (?:password|publickey) for (invalid user )?(?P<user>\S+) from (?P<ip>[\d.]+) port (?P<port>\d+)"
 )
 SUCCESS_PATTERN = re.compile(
-    r"Accepted password for (?P<user>\S+) from (?P<ip>[\d.]+) port (?P<port>\d+)"
+    r"Accepted (?:password|publickey) for (?P<user>\S+) from (?P<ip>[\d.]+) port (?P<port>\d+)"
 )
 
 
@@ -47,13 +55,13 @@ def parse_log_file(filepath):
             line = line.strip()
             if not line:
                 continue
-            match = LOG_PATTERN.match(line)
+            match = LOG_PATTERN.match(line) or ISO_PATTERN.match(line)
             if not match:
                 continue
 
             timestamp_str = match.group("timestamp")
             # Year isn't in raw syslog format, so we assume the current year
-            timestamp = datetime.strptime(f"2026 {timestamp_str}", "%Y %b %d %H:%M:%S")
+            timestamp = datetime.fromisoformat(timestamp_str).astimezone(ZoneInfo(LOCAL_TIMEZONE)).replace(tzinfo=None) if timestamp_str[0].isdigit() else datetime.strptime(f"{datetime.now().year} {timestamp_str}", "%Y %b %d %H:%M:%S")
             message = match.group("message")
 
             failed_match = FAILED_PATTERN.search(message)
